@@ -1,0 +1,141 @@
+import streamlit as st
+from bs4 import BeautifulSoup
+import requests
+import numpy as np
+import yfinance as yf
+import matplotlib.pyplot as plt
+
+# Apply custom CSS for background and stylish text
+st.markdown("""
+    <style>
+    html, body, [data-testid="stAppViewContainer"] {
+        background-image: url('https://wallpaperaccess.com/full/2119.jpg');
+        background-size: cover;
+        background-attachment: fixed;
+        color: #ffffff;
+    }
+    .main-title {
+        text-align: center;
+        font-size: 70px;
+        font-weight: bold;
+        color: #FFFFFF; /* White for the main title */
+        text-shadow: 2px 2px 4px #000000;
+    }
+    .sub-title {
+        text-align: center;
+        font-size: 34px;
+        font-style: italic;
+        color: #87CEEB; /* Light blue for subtitle */
+        margin-bottom: 39px;
+    }
+    .section-header {
+        font-size: 36px;
+        color: #FFD700; /* Gold for section headers */
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+    .data-point {
+        font-size: 18px;
+        color: #00FF7F; /* Spring green for data points */
+        margin-bottom: 10px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Display the main title and subtitle
+st.markdown("<div class='main-title'>Stock Details and Comparison</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Analyze and compare stocks effortlessly</div>", unsafe_allow_html=True)
+
+# Function to get stock info and historical data
+def get_stock_info(stock_code):
+    try:
+        url = f'https://www.screener.in/company/{stock_code}/'
+        page = requests.get(url)
+        soup = BeautifulSoup(page.text, 'html.parser')
+
+        # Extract detailed stock data
+        stock_price = soup.find_all("span")[5].text.strip()
+        stock_gl = soup.find_all("span")[6].text.strip()
+        stock_web = soup.find_all("span")[8].text.strip()
+        stock_bse = soup.find_all("span")[9].text.strip()
+        stock_nse = soup.find_all("span")[10].text.strip()
+        stock_mar = soup.find_all("li")[11].text.strip()
+        stock_curr = soup.find_all("li")[12].text.strip()
+        stock_HL = soup.find_all("li")[13].text.strip()
+        stock_PE = soup.find_all("li")[14].text.strip()
+        stock_BV = soup.find_all("li")[15].text.strip()
+        stock_DY = soup.find_all("li")[16].text.strip()
+        stock_ROCE = soup.find_all("li")[17].text.strip()
+        stock_ROE = soup.find_all("li")[18].text.strip()
+        stock_F = soup.find_all("li")[19].text.strip()
+
+        stock_data = {
+            "Price": stock_price,
+            "Gain/Loss": stock_gl,
+            "Website": stock_web,
+            "BSE Code": stock_bse,
+            "NSE Code": stock_nse,
+            "Market Cap": stock_mar,
+            "Current Price": stock_curr,
+            "High/Low": stock_HL,
+            "PE Ratio": stock_PE,
+            "Book Value": stock_BV,
+            "Dividend Yield": stock_DY,
+            "ROCE": stock_ROCE,
+            "ROE": stock_ROE,
+            "Face Value": stock_F,
+        }
+
+        # Get historical data using Yahoo Finance
+        ticker = yf.Ticker(f"{stock_code}.NS")
+        hist = ticker.history(period="5y")
+        hist['Open - Close'] = hist['Open'] - hist['Close']
+        hist['High - Low'] = hist['High'] - hist['Low']
+        hist = hist.dropna()
+
+        return stock_data, hist
+    except Exception as e:
+        return {"error": "Error fetching stock data"}, str(e)
+
+# Main Streamlit app logic
+def main():
+    stock_code_1 = st.text_input("Enter first stock code (NSE format):")
+    stock_code_2 = st.text_input("Enter second stock code (optional, NSE format):")
+
+    if stock_code_1:
+        st.markdown(f"<div class='section-header'>Fetching information for {stock_code_1}...</div>", unsafe_allow_html=True)
+        stock_data_1, hist_1 = get_stock_info(stock_code_1)
+        if "error" in stock_data_1:
+            st.error(stock_data_1["error"])
+        else:
+            st.markdown(f"<div class='section-header'>Stock Data for {stock_code_1}:</div>", unsafe_allow_html=True)
+            for key, value in stock_data_1.items():
+                # Pass content directly as an f-string without additional tags
+                st.write(f"**{key}**: {value}")
+            st.line_chart(hist_1['Close'])
+
+    if stock_code_2:
+        st.markdown(f"<div class='section-header'>Fetching information for {stock_code_2}...</div>", unsafe_allow_html=True)
+        stock_data_2, hist_2 = get_stock_info(stock_code_2)
+        if "error" in stock_data_2:
+            st.error(stock_data_2["error"])
+        else:
+            st.markdown(f"<div class='section-header'>Stock Data for {stock_code_2}:</div>", unsafe_allow_html=True)
+            for key, value in stock_data_2.items():
+                st.write(f"**{key}**: {value}")
+            st.line_chart(hist_2['Close'])
+
+            # Overlay both stock prices
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.plot(hist_1.index, hist_1['Close'], label=f"{stock_code_1} Price", color='blue')
+            ax.plot(hist_2.index, hist_2['Close'], label=f"{stock_code_2} Price", color='red')
+            ax.set_title("Stock Price Comparison")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Price (INR)")
+            ax.legend()
+            st.pyplot(fig)
+
+if __name__ == "__main__":
+    main()
+
+
